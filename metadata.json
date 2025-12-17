@@ -1,0 +1,5 @@
+{
+  "name": "Stacking Rings Experiment",
+  "description": "A playful 3D visualization of a Stack data structure using a stacking rings toy metaphor. Demonstrates LIFO (Last-In-First-Out) constraints.",
+  "requestFramePermissions": []
+}

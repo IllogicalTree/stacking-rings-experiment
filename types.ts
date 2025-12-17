@@ -1,45 +1,30 @@
-import { ThreeElements } from '@react-three/fiber';
-
-declare global {
-  namespace JSX {
-    interface IntrinsicElements extends ThreeElements {
-      mesh: ThreeElements['mesh'];
-      torusGeometry: ThreeElements['torusGeometry'];
-      meshStandardMaterial: ThreeElements['meshStandardMaterial'];
-      cylinderGeometry: ThreeElements['cylinderGeometry'];
-      circleGeometry: ThreeElements['circleGeometry'];
-      ambientLight: ThreeElements['ambientLight'];
-      directionalLight: ThreeElements['directionalLight'];
-    }
-  }
-}
+export type PoleId = 'LEFT' | 'RIGHT' | 'CENTER';
 
 export interface RingData {
   id: string;
   color: string;
-  floorPosition: [number, number, number]; // [x, y, z]
-  status: 'floor' | 'stack';
-  stackIndex: number | null; // Index in the stack array if status is 'stack'
-  shakeTrigger: number; // Timestamp to trigger shake animation
+  floorPosition: [number, number, number];
+  status: 'floor' | 'stack' | 'moving'; // moving = selected/held
+  poleId: PoleId; // Which pole does this ring belong to (or is currently on)
+  stackIndex: number | null;
+  shakeTrigger: number;
 }
 
-export type TaskId = 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3' | 'FREE_PLAY';
+export type TaskId = 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3' | 'LEVEL_4' | 'LEVEL_5' | 'COMPLETE';
 
 export interface LogEntry {
   taskId: TaskId;
-  timestamp: number; // ms
-  action: 'PUSH' | 'POP' | 'ERROR';
-  errorType?: 'LIFO_VIOLATION' | 'CAPACITY_FULL' | null;
-  details?: string;
-  _uiId: string; // Internal ID for UI rendering list
+  timestamp: number;
+  action: 'PUSH' | 'POP' | 'MOVE' | 'ERROR' | 'GUESS';
+  errorType?: 'LIFO_VIOLATION' | 'STACK_UNDERFLOW' | 'BLOCKED_BY_TOP' | 'MENTAL_MODEL_FAIL' | null;
+  context?: string; // e.g., "GOLD_RING", "EMPTY_POP"
+  _uiId: string;
 }
 
-export const COLORS = [
-  "#ef4444", // Red
-  "#3b82f6", // Blue
-  "#22c55e", // Green
-  "#eab308", // Yellow
-  "#a855f7", // Purple
-  "#ec4899", // Pink
-  "#f97316", // Orange
-];
+export const COLORS = {
+  RED: "#ef4444",
+  BLUE: "#3b82f6",
+  GREEN: "#22c55e",
+  GOLD: "#eab308", // Yellow-ish gold
+  PURPLE: "#a855f7",
+};

@@ -10,7 +10,6 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ logs, currentTask, totalErrors }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom of logs
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -18,63 +17,54 @@ export const Sidebar: React.FC<SidebarProps> = ({ logs, currentTask, totalErrors
   }, [logs]);
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 border-l border-slate-200 w-80 md:w-96 z-10 font-mono text-sm shadow-2xl">
-      {/* Header */}
-      <div className="p-5 border-b border-slate-200 bg-white">
-        <h1 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <span className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse"></span>
-          Observer Dashboard
+    <div className="flex flex-col h-full bg-white border-l border-slate-200 w-80 md:w-96 z-10 font-mono text-sm shadow-2xl">
+      <div className="p-4 border-b border-slate-200 bg-slate-50">
+        <h1 className="text-sm font-bold text-slate-700 uppercase tracking-widest flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          Research Session Log
         </h1>
-        <p className="text-xs text-slate-500 mt-1">Smart Stack Research Prototype v0.9</p>
       </div>
 
-      {/* Live Metrics */}
-      <div className="p-4 grid grid-cols-2 gap-3 bg-slate-100 border-b border-slate-200">
-        <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
-          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Current Task</div>
-          <div className="text-indigo-600 font-bold text-sm mt-1">{currentTask}</div>
+      <div className="p-3 grid grid-cols-2 gap-2 bg-slate-100 border-b border-slate-200 text-center">
+        <div className="bg-white p-2 rounded border border-slate-200">
+          <div className="text-[9px] text-slate-400 uppercase font-bold">Protocol Stage</div>
+          <div className="text-indigo-600 font-bold text-xs mt-1">{currentTask}</div>
         </div>
-        <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
-          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Total Errors</div>
-          <div className={`font-bold text-xl mt-1 ${totalErrors > 0 ? 'text-red-500' : 'text-slate-700'}`}>
+        <div className="bg-white p-2 rounded border border-slate-200">
+          <div className="text-[9px] text-slate-400 uppercase font-bold">Violations</div>
+          <div className={`font-bold text-xs mt-1 ${totalErrors > 0 ? 'text-red-600' : 'text-slate-600'}`}>
             {totalErrors}
           </div>
         </div>
       </div>
 
-      {/* JSON Stream */}
-      <div className="flex-1 overflow-hidden flex flex-col bg-slate-900 text-slate-300">
-        <div className="p-2 bg-slate-800 text-[10px] font-bold uppercase tracking-widest text-slate-400 flex justify-between items-center">
-          <span>JSON Log Stream</span>
-          <span className="bg-slate-700 px-2 py-0.5 rounded text-white">{logs.length} events</span>
-        </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 bg-slate-900 space-y-2">
+        {logs.length === 0 && <div className="text-slate-600 italic text-center text-xs mt-10">Waiting for subject interaction...</div>}
         
-        <div 
-          ref={scrollRef} 
-          className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-xs"
-        >
-          {logs.length === 0 && (
-            <div className="text-slate-600 italic text-center mt-10">
-              Waiting for user interaction...
+        {logs.map((log) => (
+          <div key={log._uiId} className="flex gap-2 text-[10px] font-mono border-l-2 pl-2 py-1 transition-all"
+               style={{ borderColor: log.action === 'ERROR' ? '#ef4444' : log.action === 'GUESS' ? '#eab308' : '#3b82f6' }}>
+            <div className="text-slate-500 min-w-[50px]">{log.timestamp.toString().slice(-5)}</div>
+            <div className="flex-1">
+              <div className="flex justify-between">
+                <span className={`font-bold ${
+                  log.action === 'ERROR' ? 'text-red-400' : 
+                  log.action === 'PUSH' ? 'text-emerald-400' : 
+                  log.action === 'POP' ? 'text-blue-400' : 'text-slate-300'
+                }`}>
+                  {log.action}
+                </span>
+                <span className="text-slate-600">{log.taskId}</span>
+              </div>
+              {log.errorType && (
+                <div className="text-red-400 font-bold mt-0.5">> {log.errorType}</div>
+              )}
+              {log.context && (
+                <div className="text-slate-500 mt-0.5">Ctx: {log.context}</div>
+              )}
             </div>
-          )}
-          {logs.map((log) => (
-            <div key={log._uiId} className="group relative">
-              <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-full ${
-                log.action === 'ERROR' ? 'bg-red-500' : 
-                log.action === 'PUSH' ? 'bg-blue-500' : 'bg-green-500'
-              }`}></div>
-              <pre className="pl-3 whitespace-pre-wrap break-all opacity-80 group-hover:opacity-100 transition-opacity">
-{JSON.stringify({
-  taskId: log.taskId,
-  time: log.timestamp,
-  act: log.action,
-  ...(log.errorType ? { err: log.errorType } : {})
-}, null, 2)}
-              </pre>
-            </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );

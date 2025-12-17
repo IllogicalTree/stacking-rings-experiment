@@ -1,218 +1,395 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { v4 as uuidv4 } from 'uuid';
 import { Scene } from './components/Scene';
 import { Sidebar } from './components/Sidebar';
-import { RingData, LogEntry, COLORS, TaskId } from './types';
+import { RingData, LogEntry, COLORS, TaskId, PoleId } from './types';
 import { FLOOR_RADIUS_MIN, FLOOR_RADIUS_MAX, MAX_STACK_CAPACITY } from './constants';
 
-// --- Game/Level Definitions ---
+// --- Level Configuration Types ---
 
-type LevelConfig = {
+type GameState = {
+  rings: RingData[];
+  stacks: Record<string, string[]>; // PoleID -> Array of Ring IDs
+  selectedRingId: string | null;
+  popCount?: number; // For Level 4
+  blindfoldSequence?: string[]; // For Level 6 (Removed but keeping type clean if needed)
+};
+
+type LevelDefinition = {
   id: TaskId;
   title: string;
   instruction: string;
-  checkCompletion: (stackSize: number, lastLog?: LogEntry) => boolean;
+  layout: 'SINGLE' | 'DUAL';
+  blindfold: boolean;
+  setup: () => GameState;
 };
 
-const LEVELS: LevelConfig[] = [
+// --- Helper Functions ---
+
+const createRing = (color: string, index: number, total: number, poleId: PoleId = 'CENTER', status: 'floor' | 'stack' = 'floor'): RingData => {
+  // Distribute rings evenly in a circle to prevent overlap
+  const angle = (index / total) * Math.PI * 2;
+  const radius = 5.5; 
+  return {
+    id: uuidv4(),
+    color,
+    floorPosition: [Math.cos(angle) * radius, 0.25, Math.sin(angle) * radius],
+    status,
+    poleId,
+    stackIndex: null,
+    shakeTrigger: 0
+  };
+};
+
+// --- The 5 Levels ---
+
+const LEVELS: LevelDefinition[] = [
   {
     id: 'LEVEL_1',
     title: 'The Basics',
     instruction: 'Push 3 rings onto the stack.',
-    checkCompletion: (size) => size === 3
+    layout: 'SINGLE',
+    blindfold: false,
+    setup: () => {
+      const colors = [COLORS.RED, COLORS.BLUE, COLORS.GREEN, COLORS.PURPLE, COLORS.GOLD];
+      const rings = colors.map((c, i) => createRing(c, i, colors.length));
+      return { rings, stacks: { CENTER: [] }, selectedRingId: null };
+    }
   },
   {
     id: 'LEVEL_2',
-    title: 'LIFO Logic',
+    title: 'The Cleanup (LIFO)',
     instruction: 'Empty the stack completely.',
-    checkCompletion: (size) => size === 0
+    layout: 'SINGLE',
+    blindfold: false,
+    setup: () => {
+      // Even though they start on stack, we assign unique floor slots via index for when they pop
+      const r1 = createRing(COLORS.RED, 0, 3, 'CENTER', 'stack');
+      const r2 = createRing(COLORS.BLUE, 1, 3, 'CENTER', 'stack');
+      const r3 = createRing(COLORS.GREEN, 2, 3, 'CENTER', 'stack');
+      r1.stackIndex = 0; r2.stackIndex = 1; r3.stackIndex = 2;
+      return { 
+        rings: [r1, r2, r3], 
+        stacks: { CENTER: [r1.id, r2.id, r3.id] }, 
+        selectedRingId: null 
+      };
+    }
   },
   {
     id: 'LEVEL_3',
-    title: 'Capacity Stress Test',
-    instruction: `Try to push ${MAX_STACK_CAPACITY + 1} rings onto the stack.`,
-    checkCompletion: (size, lastLog) => size === MAX_STACK_CAPACITY && lastLog?.errorType === 'CAPACITY_FULL'
+    title: 'Buried Treasure',
+    instruction: 'Pop the GOLD Ring.',
+    layout: 'SINGLE',
+    blindfold: false,
+    setup: () => {
+      const gold = createRing(COLORS.GOLD, 0, 3, 'CENTER', 'stack');
+      const blue1 = createRing(COLORS.BLUE, 1, 3, 'CENTER', 'stack');
+      const blue2 = createRing(COLORS.BLUE, 2, 3, 'CENTER', 'stack');
+      gold.stackIndex = 0; blue1.stackIndex = 1; blue2.stackIndex = 2;
+      return { 
+        rings: [gold, blue1, blue2], 
+        stacks: { CENTER: [gold.id, blue1.id, blue2.id] }, 
+        selectedRingId: null 
+      };
+    }
+  },
+  {
+    id: 'LEVEL_4',
+    title: 'The Phantom Pop',
+    instruction: 'Perform the Pop action exactly 5 times.',
+    layout: 'SINGLE',
+    blindfold: false,
+    setup: () => {
+      const r1 = createRing(COLORS.PURPLE, 0, 3, 'CENTER', 'stack');
+      const r2 = createRing(COLORS.PURPLE, 1, 3, 'CENTER', 'stack');
+      const r3 = createRing(COLORS.PURPLE, 2, 3, 'CENTER', 'stack');
+      r1.stackIndex = 0; r2.stackIndex = 1; r3.stackIndex = 2;
+      return { 
+        rings: [r1, r2, r3], 
+        stacks: { CENTER: [r1.id, r2.id, r3.id] }, 
+        selectedRingId: null,
+        popCount: 0
+      };
+    }
+  },
+  {
+    id: 'LEVEL_5',
+    title: 'The Twin Towers',
+    instruction: 'Move the RED ring to the RIGHT pole.',
+    layout: 'DUAL',
+    blindfold: false,
+    setup: () => {
+      const red = createRing(COLORS.RED, 0, 2, 'LEFT', 'stack');
+      const blue = createRing(COLORS.BLUE, 1, 2, 'LEFT', 'stack');
+      red.stackIndex = 0; blue.stackIndex = 1;
+      return {
+        rings: [red, blue],
+        stacks: { LEFT: [red.id, blue.id], RIGHT: [] },
+        selectedRingId: null
+      };
+    }
   }
 ];
 
-const generateInitialRings = (count: number): RingData[] => {
-  return Array.from({ length: count }).map((_, i) => {
-    const angle = (Math.PI * 2 * i) / count;
-    const radius = FLOOR_RADIUS_MIN + Math.random() * (FLOOR_RADIUS_MAX - FLOOR_RADIUS_MIN);
-    return {
-      id: uuidv4(),
-      color: COLORS[i % COLORS.length],
-      floorPosition: [Math.cos(angle) * radius, 0.25, Math.sin(angle) * radius],
-      status: 'floor',
-      stackIndex: null,
-      shakeTrigger: 0
-    };
-  });
-};
+// --- Main App Component ---
 
 const App: React.FC = () => {
-  // --- State ---
-  const [rings, setRings] = useState<RingData[]>(() => generateInitialRings(8));
-  const [stack, setStack] = useState<string[]>([]);
+  const [levelIdx, setLevelIdx] = useState(0);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [flashError, setFlashError] = useState(false);
   
-  // Game State
-  const [levelIndex, setLevelIndex] = useState(0);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  
-  const currentLevel = LEVELS[levelIndex] || LEVELS[LEVELS.length - 1];
-  const isGameComplete = levelIndex >= LEVELS.length;
+  const currentLevel = LEVELS[levelIdx];
+  const isComplete = levelIdx >= LEVELS.length;
 
-  const totalErrors = useMemo(() => logs.filter(l => l.action === 'ERROR').length, [logs]);
+  // Initialize State based on Level
+  const [gameState, setGameState] = useState<GameState>(currentLevel?.setup() || { rings: [], stacks: {}, selectedRingId: null });
 
-  // --- Logic ---
+  // Reset state when level changes
+  useEffect(() => {
+    if (!isComplete) {
+      setGameState(currentLevel.setup());
+      setShowSuccess(false);
+    }
+  }, [levelIdx, isComplete]);
 
-  const addLog = useCallback((action: 'PUSH' | 'POP' | 'ERROR', errorType?: 'LIFO_VIOLATION' | 'CAPACITY_FULL' | null) => {
-    const newLog: LogEntry = {
+  // Logging Utility
+  const addLog = useCallback((action: LogEntry['action'], errorType: LogEntry['errorType'] = null, context: string = '') => {
+    setLogs(prev => [...prev, {
       _uiId: uuidv4(),
-      taskId: isGameComplete ? 'FREE_PLAY' : currentLevel.id,
+      taskId: currentLevel.id,
       timestamp: Date.now(),
       action,
-      errorType: errorType || null
-    };
-    setLogs(prev => [...prev, newLog]);
-    return newLog;
-  }, [currentLevel, isGameComplete]);
-
-  const handleLevelComplete = () => {
-    setShowSuccessModal(true);
-  };
+      errorType,
+      context
+    }]);
+    if (errorType) {
+      setFlashError(true);
+      setTimeout(() => setFlashError(false), 500);
+    }
+  }, [currentLevel]);
 
   const advanceLevel = () => {
-    setShowSuccessModal(false);
-    if (levelIndex < LEVELS.length) {
-      setLevelIndex(prev => prev + 1);
+    if (levelIdx < LEVELS.length - 1) {
+      setLevelIdx(prev => prev + 1);
+    } else {
+      // End game state
+      setLevelIdx(LEVELS.length);
     }
   };
 
-  const handleRingClick = useCallback((id: string) => {
-    if (showSuccessModal) return; // Block input during modal
+  // --- Interaction Logic (The Brain) ---
 
-    setRings(prevRings => {
-      const ringIndex = prevRings.findIndex(r => r.id === id);
-      if (ringIndex === -1) return prevRings;
+  const handleRingClick = (id: string) => {
+    if (showSuccess || isComplete) return;
 
-      const newRings = [...prevRings];
-      const currentRing = { ...newRings[ringIndex] };
-      const currentStackSize = stack.length;
-      let lastLogEntry: LogEntry | undefined;
+    setGameState(prev => {
+      const ring = prev.rings.find(r => r.id === id);
+      if (!ring) return prev;
+      
+      const poleStack = prev.stacks[ring.poleId];
+      const isTop = poleStack[poleStack.length - 1] === ring.id;
 
-      // --- PUSH LOGIC ---
-      if (currentRing.status === 'floor') {
-        if (currentStackSize >= MAX_STACK_CAPACITY) {
-          // CAPICITY ERROR
-          currentRing.shakeTrigger = Date.now();
-          lastLogEntry = addLog('ERROR', 'CAPACITY_FULL');
-        } else {
-          // SUCCESSFUL PUSH
-          currentRing.status = 'stack';
-          currentRing.stackIndex = currentStackSize;
-          setStack(prev => [...prev, id]); // Schedule stack update
-          lastLogEntry = addLog('PUSH');
+      // --- LEVEL SPECIFIC LOGIC ---
+
+      // Level 2 & 3: LIFO & Buried Treasure
+      if ((currentLevel.id === 'LEVEL_2' || currentLevel.id === 'LEVEL_3') && ring.status === 'stack') {
+        if (!isTop) {
+          // LIFO Violation
+          ring.shakeTrigger = Date.now();
+          const context = (ring.color === COLORS.GOLD) ? 'GOLD_RING' : 'BURIED_RING';
+          addLog('ERROR', 'LIFO_VIOLATION', context);
+          return { ...prev }; // Force re-render for shake
         }
-      } 
-      // --- POP LOGIC ---
-      else if (currentRing.status === 'stack') {
-        const topOfStackId = stack[currentStackSize - 1];
+        // Valid Pop
+        const newStack = poleStack.slice(0, -1);
+        const newRings = prev.rings.map(r => r.id === id ? { ...r, status: 'floor' as const, stackIndex: null } : r);
         
-        if (id === topOfStackId) {
-          // SUCCESSFUL POP
-          currentRing.status = 'floor';
-          currentRing.stackIndex = null;
-          setStack(prev => prev.slice(0, -1)); // Schedule stack update
-          lastLogEntry = addLog('POP');
+        // Check Level 3 Success (Popped Gold)
+        if (currentLevel.id === 'LEVEL_3' && ring.color === COLORS.GOLD) {
+          addLog('POP', null, 'GOLD_RING_RETRIEVED');
+          setTimeout(() => setShowSuccess(true), 500);
         } else {
-          // LIFO ERROR
-          currentRing.shakeTrigger = Date.now();
-          lastLogEntry = addLog('ERROR', 'LIFO_VIOLATION');
+          addLog('POP');
         }
+
+        // Check Level 2 Success (Empty Stack)
+        if (currentLevel.id === 'LEVEL_2' && newStack.length === 0) {
+          setTimeout(() => setShowSuccess(true), 500);
+        }
+
+        return { ...prev, rings: newRings, stacks: { ...prev.stacks, [ring.poleId]: newStack } };
       }
 
-      newRings[ringIndex] = currentRing;
+      // Level 4: Phantom Pop (User clicks topmost ring)
+      if (currentLevel.id === 'LEVEL_4' && ring.status === 'stack') {
+        // Standard pop
+        const newStack = poleStack.slice(0, -1);
+        const newRings = prev.rings.map(r => r.id === id ? { ...r, status: 'floor' as const, stackIndex: null } : r);
+        
+        const newPopCount = (prev.popCount || 0) + 1;
+        addLog('POP', null, `Count: ${newPopCount}`);
 
-      // Check Level Completion immediately (using predicted stack size)
-      // Note: We use the 'future' stack size for checking logic
-      if (!isGameComplete && lastLogEntry) {
-        let predictedStackSize = currentStackSize;
-        if (lastLogEntry.action === 'PUSH') predictedStackSize++;
-        if (lastLogEntry.action === 'POP') predictedStackSize--;
+        if (newPopCount >= 5) setTimeout(() => setShowSuccess(true), 500);
 
-        if (currentLevel.checkCompletion(predictedStackSize, lastLogEntry)) {
-          // We need to defer the modal slightly to let the animation start/log register
-          setTimeout(handleLevelComplete, 500);
-        }
+        return { ...prev, rings: newRings, stacks: { ...prev.stacks, [ring.poleId]: newStack }, popCount: newPopCount };
       }
 
-      return newRings;
+      // Level 5: Twin Towers Selection
+      if (currentLevel.id === 'LEVEL_5' && ring.status === 'stack') {
+        if (!isTop) {
+           // Blocked
+           ring.shakeTrigger = Date.now();
+           addLog('ERROR', 'BLOCKED_BY_TOP', 'TELEPORT_ATTEMPT');
+           return { ...prev };
+        }
+        // Select Ring
+        return { ...prev, selectedRingId: prev.selectedRingId === id ? null : id };
+      }
+
+      // Level 1: Basic Push (Click floor ring)
+      if (currentLevel.id === 'LEVEL_1' && ring.status === 'floor') {
+        const stack = prev.stacks['CENTER'];
+        const newRings = prev.rings.map(r => r.id === id ? { 
+          ...r, status: 'stack' as const, poleId: 'CENTER' as PoleId, stackIndex: stack.length 
+        } : r);
+        
+        addLog('PUSH');
+        if (stack.length + 1 >= 3) setTimeout(() => setShowSuccess(true), 500);
+        
+        return { ...prev, rings: newRings, stacks: { CENTER: [...stack, id] } };
+      }
+
+      return prev;
     });
-  }, [stack, currentLevel, isGameComplete, showSuccessModal, addLog]);
+  };
+
+  const handlePoleClick = (poleId: PoleId) => {
+    if (showSuccess || isComplete) return;
+
+    // Level 4: Empty Pop Click (Phantom Pop)
+    // In Level 4, we interpret clicking the "Pole" (or base) when empty as a "Pop Attempt"
+    if (currentLevel.id === 'LEVEL_4') {
+      const stack = gameState.stacks[poleId] || [];
+      if (stack.length === 0) {
+        const newPopCount = (gameState.popCount || 0) + 1;
+        addLog('ERROR', 'STACK_UNDERFLOW', 'EMPTY_POP');
+        
+        // This counts towards the goal of 5 interactions
+        if (newPopCount >= 5) setTimeout(() => setShowSuccess(true), 500);
+        
+        return setGameState(prev => ({ ...prev, popCount: newPopCount }));
+      }
+    }
+
+    // Level 5: Move Logic
+    if (currentLevel.id === 'LEVEL_5' && gameState.selectedRingId) {
+      setGameState(prev => {
+        const ring = prev.rings.find(r => r.id === prev.selectedRingId);
+        if (!ring) return prev;
+        
+        // Can't move to same pole if already there (simplify logic: just ignore)
+        if (ring.poleId === poleId) return { ...prev, selectedRingId: null };
+
+        // Move it
+        const oldPole = ring.poleId;
+        const newStack = [...(prev.stacks[poleId] || []), ring.id];
+        const oldStack = prev.stacks[oldPole].filter(id => id !== ring.id);
+
+        const newRings = prev.rings.map(r => r.id === ring.id ? { 
+          ...r, poleId, stackIndex: newStack.length - 1, status: 'stack' as const 
+        } : r);
+
+        // Update indices for old stack (shouldn't be needed if strictly top, but good for safety)
+        
+        addLog('MOVE', null, `${oldPole} -> ${poleId}`);
+
+        // Success Check: Red Ring on Right Pole
+        if (ring.color === COLORS.RED && poleId === 'RIGHT') {
+          setTimeout(() => setShowSuccess(true), 500);
+        }
+
+        return { 
+          ...prev, 
+          rings: newRings, 
+          stacks: { ...prev.stacks, [oldPole]: oldStack, [poleId]: newStack },
+          selectedRingId: null
+        };
+      });
+    }
+  };
 
   // --- Render ---
 
+  if (isComplete) {
+    return (
+      <div className="flex w-full h-full bg-slate-100 items-center justify-center p-8">
+        <div className="flex flex-col max-w-4xl w-full h-[80vh] bg-white rounded-2xl shadow-2xl overflow-hidden">
+          <div className="p-8 border-b border-slate-200 bg-slate-50">
+             <h1 className="text-3xl font-bold text-slate-800">Study Complete</h1>
+             <p className="text-slate-600 mt-2">Data collection finished. Please copy the logs below.</p>
+          </div>
+          <div className="flex-1 bg-slate-900 overflow-hidden relative">
+             <div className="absolute inset-0 overflow-y-auto p-6 text-xs font-mono text-emerald-400">
+               {logs.map(l => (
+                 <div key={l._uiId} className="mb-1 border-b border-slate-800 pb-1 last:border-0 hover:bg-slate-800">
+                   {JSON.stringify(l)}
+                 </div>
+               ))}
+             </div>
+          </div>
+          <div className="p-4 bg-slate-100 text-center text-slate-500 text-sm">
+            Total Interactions: {logs.length}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex w-full h-full bg-slate-100 font-sans text-slate-800">
+    <div className={`flex w-full h-full bg-slate-100 font-sans text-slate-800 transition-colors duration-200 ${flashError ? 'bg-red-50' : ''}`}>
       
-      {/* Main 3D Area */}
       <div className="flex-1 relative h-full">
         {/* Instruction Card */}
-        {!isGameComplete && (
-           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-md">
-             <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-indigo-100 transform transition-all hover:scale-105">
-               <div className="flex justify-between items-center mb-2">
-                 <span className="text-xs font-bold tracking-widest text-indigo-500 uppercase">
-                   Task {levelIndex + 1} / {LEVELS.length}
-                 </span>
-                 {levelIndex === 2 && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded-full font-bold">STRESS TEST</span>}
-               </div>
-               <h2 className="text-2xl font-bold text-slate-800 mb-1">{currentLevel.title}</h2>
-               <p className="text-slate-600 text-lg">{currentLevel.instruction}</p>
-             </div>
-           </div>
-        )}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-md pointer-events-none">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-indigo-100">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-bold tracking-widest text-indigo-500 uppercase">
+                Stage {levelIdx + 1}: {currentLevel.title}
+              </span>
+            </div>
+            <p className="text-slate-700 text-lg font-medium">{currentLevel.instruction}</p>
+          </div>
+        </div>
 
-        <Canvas shadows camera={{ position: [8, 6, 8], fov: 45 }}>
-          <Scene rings={rings} stack={stack} onRingClick={handleRingClick} />
+        <Canvas shadows camera={{ position: [0, 8, 12], fov: 45 }}>
+          <Scene 
+            rings={gameState.rings} 
+            stacks={gameState.stacks} 
+            onRingClick={handleRingClick}
+            onPoleClick={handlePoleClick}
+            layout={currentLevel.layout}
+            blindfold={currentLevel.blindfold}
+            selectedRingId={gameState.selectedRingId}
+          />
         </Canvas>
       </div>
 
-      {/* Right Sidebar */}
       <div className="hidden md:block h-full">
-        <Sidebar logs={logs} currentTask={isGameComplete ? 'FREE_PLAY' : currentLevel.id} totalErrors={totalErrors} />
+        <Sidebar logs={logs} currentTask={currentLevel.id} totalErrors={logs.filter(l => l.action === 'ERROR').length} />
       </div>
 
-      {/* Success Modal Overlay */}
-      {showSuccessModal && (
+      {showSuccess && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center animate-bounce-in">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              🎉
-            </div>
-            <h2 className="text-3xl font-bold text-slate-800 mb-2">Success!</h2>
-            <p className="text-slate-600 mb-8">
-              You completed <span className="font-bold text-indigo-600">{currentLevel.title}</span>.
-            </p>
+            <h2 className="text-3xl font-bold text-slate-800 mb-2">Stage Complete</h2>
             <button 
               onClick={advanceLevel}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-1 active:scale-95"
+              className="w-full mt-6 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all"
             >
-              {levelIndex < LEVELS.length - 1 ? "Next Level →" : "Finish Study"}
+              Continue Protocol →
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Game Complete Overlay */}
-      {isGameComplete && !showSuccessModal && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-md pointer-events-none">
-          <div className="bg-green-500/90 backdrop-blur-md rounded-2xl shadow-xl p-6 text-white text-center">
-            <h2 className="text-2xl font-bold mb-1">Study Complete!</h2>
-            <p className="opacity-90">Thank you for participating.</p>
           </div>
         </div>
       )}

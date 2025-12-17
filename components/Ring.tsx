@@ -2,33 +2,44 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/three';
 import { ThreeEvent } from '@react-three/fiber';
 import { RingData } from '../types';
-import { RING_INNER_RADIUS, RING_TUBE_RADIUS, RING_HEIGHT, STACK_BASE_Y } from '../constants';
+import { RING_INNER_RADIUS, RING_TUBE_RADIUS, RING_HEIGHT, STACK_BASE_Y, POLE_POSITIONS } from '../constants';
 
 interface RingProps {
   data: RingData;
   onClick: (id: string) => void;
-  stackSize: number;
+  isTop: boolean;
+  isSelected: boolean;
+  isClickable: boolean;
 }
 
-export const Ring: React.FC<RingProps> = ({ data, onClick, stackSize }) => {
-  const { id, color, floorPosition, status, stackIndex, shakeTrigger } = data;
+export const Ring: React.FC<RingProps> = ({ data, onClick, isTop, isSelected, isClickable }) => {
+  const { id, color, floorPosition, status, stackIndex, shakeTrigger, poleId } = data;
   const [hovered, setHovered] = useState(false);
 
-  // Calculate target position based on status
+  // Calculate target position
   const targetPosition = useMemo(() => {
     if (status === 'floor') {
       return floorPosition;
-    } else if (status === 'stack' && stackIndex !== null) {
-      // Calculate y position based on stack index
+    } 
+    
+    // Determine X/Z based on Pole ID
+    let basePos = [0, 0, 0];
+    if (poleId === 'LEFT') basePos = [POLE_POSITIONS.LEFT[0], 0, POLE_POSITIONS.LEFT[2]];
+    else if (poleId === 'RIGHT') basePos = [POLE_POSITIONS.RIGHT[0], 0, POLE_POSITIONS.RIGHT[2]];
+    
+    if (status === 'stack' && stackIndex !== null) {
       const y = STACK_BASE_Y + stackIndex * RING_HEIGHT;
-      return [0, y, 0] as [number, number, number];
+      return [basePos[0], y, basePos[2]] as [number, number, number];
     }
+    
+    if (status === 'moving' || isSelected) {
+      // Float above the pole if selected/moving
+      return [basePos[0], POLE_POSITIONS.CENTER[1] + 3, basePos[2]] as [number, number, number];
+    }
+
     return [0, 0, 0] as [number, number, number];
-  }, [status, stackIndex, floorPosition]);
+  }, [status, stackIndex, floorPosition, poleId, isSelected]);
 
-  const isInteractive = status === 'floor' || (status === 'stack' && stackIndex === stackSize - 1);
-
-  // Spring animation configuration
   const [spring, api] = useSpring(() => ({
     position: targetPosition,
     scale: 1,
@@ -36,21 +47,20 @@ export const Ring: React.FC<RingProps> = ({ data, onClick, stackSize }) => {
     config: { tension: 120, friction: 14 }
   }));
 
-  // Update spring when props/state change
   useEffect(() => {
     api.start({
       position: targetPosition,
-      scale: hovered && isInteractive ? 1.1 : 1,
+      scale: (hovered && isClickable) || isSelected ? 1.1 : 1,
       rotation: [Math.PI / 2, 0, 0],
     });
-  }, [targetPosition, hovered, isInteractive, api]);
+  }, [targetPosition, hovered, isClickable, isSelected, api]);
 
-  // Handle Shake Animation via async sequence
+  // Shake Animation
   useEffect(() => {
     if (shakeTrigger > 0) {
       const [x, y, z] = targetPosition;
       const shakeOffset = 0.5;
-      const speed = 40; // duration in ms
+      const speed = 40;
 
       api.start({
         to: async (next) => {
@@ -71,12 +81,12 @@ export const Ring: React.FC<RingProps> = ({ data, onClick, stackSize }) => {
       rotation={spring.rotation as any}
       onPointerOver={(e) => {
         e.stopPropagation();
-        if (isInteractive) setHovered(true);
+        if (isClickable) setHovered(true);
       }}
-      onPointerOut={(e) => setHovered(false)}
+      onPointerOut={() => setHovered(false)}
       onClick={(e: ThreeEvent<PointerEvent>) => {
         e.stopPropagation();
-        onClick(id);
+        if (isClickable) onClick(id);
       }}
     >
       <mesh castShadow receiveShadow>
@@ -84,7 +94,8 @@ export const Ring: React.FC<RingProps> = ({ data, onClick, stackSize }) => {
         <meshStandardMaterial 
           color={color} 
           roughness={0.2} 
-          metalness={0.1} 
+          metalness={0.1}
+          emissive={isSelected ? "#444" : "#000"}
         />
       </mesh>
     </animated.group>

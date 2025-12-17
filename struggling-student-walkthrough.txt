@@ -1,0 +1,24 @@
+{"_uiId":"406a90a4-2819-4b58-aaf3-b284b488b6ab","taskId":"LEVEL_1","timestamp":1765968399322,"action":"PUSH","errorType":null,"context":""}
+{"_uiId":"0c43869e-a58f-462b-84cc-d0b0bf31c136","taskId":"LEVEL_1","timestamp":1765968400031,"action":"PUSH","errorType":null,"context":""}
+{"_uiId":"3cc43954-cad1-414d-b932-3c38c0bc5334","taskId":"LEVEL_1","timestamp":1765968401212,"action":"PUSH","errorType":null,"context":""}
+{"_uiId":"3bdc9c52-a6e8-4269-af0e-bfd645b1580f","taskId":"LEVEL_2","timestamp":1765968404941,"action":"ERROR","errorType":"LIFO_VIOLATION","context":"BURIED_RING"}
+{"_uiId":"3ebb129a-9af6-45f5-9edf-7bb8fc5c03d2","taskId":"LEVEL_2","timestamp":1765968406236,"action":"ERROR","errorType":"LIFO_VIOLATION","context":"BURIED_RING"}
+{"_uiId":"1d6f9404-209a-4d58-b428-95e19ae5bd80","taskId":"LEVEL_2","timestamp":1765968408957,"action":"POP","errorType":null,"context":""}
+{"_uiId":"7ea7a034-b9d8-449f-891d-b1e5d21189af","taskId":"LEVEL_2","timestamp":1765968409595,"action":"ERROR","errorType":"LIFO_VIOLATION","context":"BURIED_RING"}
+{"_uiId":"0006e361-08aa-4eca-aad3-5a1804279be9","taskId":"LEVEL_2","timestamp":1765968410234,"action":"POP","errorType":null,"context":""}
+{"_uiId":"a2eeae2f-79e6-47b3-8805-066603230eff","taskId":"LEVEL_2","timestamp":1765968412780,"action":"POP","errorType":null,"context":""}
+{"_uiId":"7b1dbed0-f497-4d5a-adf4-f519f4d5b5c4","taskId":"LEVEL_3","timestamp":1765968418880,"action":"ERROR","errorType":"LIFO_VIOLATION","context":"BURIED_RING"}
+{"_uiId":"9ea80e56-c721-4d54-a969-bb717894b111","taskId":"LEVEL_3","timestamp":1765968419912,"action":"ERROR","errorType":"LIFO_VIOLATION","context":"GOLD_RING"}
+{"_uiId":"1005304a-eb53-4b21-9d8a-a0ec15b2a0c0","taskId":"LEVEL_3","timestamp":1765968421295,"action":"ERROR","errorType":"LIFO_VIOLATION","context":"BURIED_RING"}
+{"_uiId":"61e13b3c-2419-4b0c-9280-6e95092b0977","taskId":"LEVEL_3","timestamp":1765968421689,"action":"POP","errorType":null,"context":""}
+{"_uiId":"d3c62e83-b221-45aa-94a8-45001e3e8043","taskId":"LEVEL_3","timestamp":1765968422380,"action":"POP","errorType":null,"context":""}
+{"_uiId":"f671ac71-a2ad-494b-92bf-d5dbfb0b76dd","taskId":"LEVEL_3","timestamp":1765968423080,"action":"POP","errorType":null,"context":"GOLD_RING_RETRIEVED"}
+{"_uiId":"83ff4f00-25ac-46e8-89f9-390bb615e324","taskId":"LEVEL_4","timestamp":1765968426440,"action":"POP","errorType":null,"context":"Count: 1"}
+{"_uiId":"bfa2b7c9-dc22-4a8c-8380-ebb500a7021d","taskId":"LEVEL_4","timestamp":1765968427245,"action":"POP","errorType":null,"context":"Count: 2"}
+{"_uiId":"ef68b3d1-62a6-4a30-a722-c4c7ff8c6d57","taskId":"LEVEL_4","timestamp":1765968427788,"action":"POP","errorType":null,"context":"Count: 3"}
+{"_uiId":"467c4ccb-febf-4e5e-b5e6-684a1fbd2239","taskId":"LEVEL_4","timestamp":1765968429258,"action":"ERROR","errorType":"STACK_UNDERFLOW","context":"EMPTY_POP"}
+{"_uiId":"d7aec21d-90e2-4330-bb53-5d4d66bb5b46","taskId":"LEVEL_4","timestamp":1765968429739,"action":"ERROR","errorType":"STACK_UNDERFLOW","context":"EMPTY_POP"}
+{"_uiId":"bb50e799-365e-45a1-b93c-a25aa9fd9175","taskId":"LEVEL_5","timestamp":1765968433064,"action":"ERROR","errorType":"BLOCKED_BY_TOP","context":"TELEPORT_ATTEMPT"}
+{"_uiId":"a683433a-da79-492e-aeda-ac0bf9f8d7cc","taskId":"LEVEL_5","timestamp":1765968434482,"action":"ERROR","errorType":"BLOCKED_BY_TOP","context":"TELEPORT_ATTEMPT"}
+{"_uiId":"0fb3bc56-ee7b-4380-b5ef-bdcdcaf57c00","taskId":"LEVEL_5","timestamp":1765968435313,"action":"MOVE","errorType":null,"context":"LEFT -> RIGHT"}
+{"_uiId":"137c2696-c5f9-4297-9db1-97fd77d178ac","taskId":"LEVEL_5","timestamp":1765968436844,"action":"MOVE","errorType":null,"context":"LEFT -> RIGHT"}

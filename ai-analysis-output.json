@@ -1,0 +1,32 @@
+{
+  "LEVEL_1": {
+    "misconception_identified": null,
+    "confidence": 0.05,
+    "reasoning": "All users performed only PUSH actions with no errors, indicating correct understanding of basic stack insertion.",
+    "intervention_command": "NONE"
+  },
+  "LEVEL_2": {
+    "misconception_identified": "LIFO_VIOLATION",
+    "confidence": 0.85,
+    "reasoning": "Repeated attempts to access buried rings before popping the top indicate a misconception that stacks allow random or array-like access.",
+    "intervention_command": "SHAKE_RING"
+  },
+  "LEVEL_3": {
+    "misconception_identified": "LIFO_VIOLATION",
+    "confidence": 0.7,
+    "reasoning": "Users repeatedly attempted to retrieve the gold or buried ring directly before clearing the stack top, showing persistent LIFO misunderstanding despite eventual correction.",
+    "intervention_command": "FLASH_RED"
+  },
+  "LEVEL_4": {
+    "misconception_identified": "STACK_UNDERFLOW",
+    "confidence": 0.9,
+    "reasoning": "After successfully popping all elements, users continued issuing POP actions, indicating failure to track the empty stack state.",
+    "intervention_command": "LOCK_BOTTOM"
+  },
+  "LEVEL_5": {
+    "misconception_identified": "BLOCKED_BY_TOP",
+    "confidence": 0.75,
+    "reasoning": "Users attempted to move lower rings directly between poles before clearing the top, suggesting teleportation or queue-like transfer assumptions.",
+    "intervention_command": "SHAKE_RING"
+  }
+}
